@@ -9,39 +9,61 @@ import SwiftUI
 import MapKit
 import Contacts
 
+
+
+
 struct ContentView: View {
-    @State private var contacts : [CNContact] = []
+    @State private var uicontacts : [CNContact] = []
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var isHelp = false
+    @State private var route : MKRoute?
     
-    func getContactList(){
+    func getContactList() {
         let CNStore = CNContactStore()
-        
-        switch CNContactStore.authorizationStatus(for: .contacts){
+       
+        switch CNContactStore.authorizationStatus(for: .contacts) {
         case .authorized:
-            do{
-                let keys = [CNContactGivenNameKey as CNKeyDescriptor , CNContactFamilyNameKey as CNKeyDescriptor , CNContactPhoneNumbersKey as CNKeyDescriptor]
-                let request = CNContactFetchRequest(keysToFetch: keys)
-                try CNStore.enumerateContacts(with: request, usingBlock: { contact , _ in
+            DispatchQueue.global(qos: .background).async {
+                var contacts = [CNContact]()
+         
+                do {
+                    let keys = [CNContactGivenNameKey as CNKeyDescriptor,
+                                CNContactFamilyNameKey as CNKeyDescriptor,
+                                CNContactPhoneNumbersKey as CNKeyDescriptor]
                     
-                    contacts.append(contact)
+                    let request = CNContactFetchRequest(keysToFetch: keys)
                     
-                })
-            }catch{
+                    try CNStore.enumerateContacts(with: request, usingBlock: { contact, _ in
+                        contacts.append(contact)
+                    })
+                    
+                    //update the UI on the main thread
+                    DispatchQueue.main.async {
+                        uicontacts = contacts
+                    }
+                    
+                } catch {
+                    print("Error fetching contacts: \(error)")
                 
-            }
-        case .denied:
-            print("denined")
-        case .notDetermined:
-            CNStore.requestAccess(for: .contacts, completionHandler:{ granted , error in
-                if(granted){
-                    getContactList()
+                    DispatchQueue.main.async {
+                        // Show an error message to the user or update the UI accordingly
+                    }
                 }
-            })
+            }
+            
+        case .denied:
+            print("denied")
+            
+        case .notDetermined:
+            CNStore.requestAccess(for: .contacts) { granted, error in
+                if granted {
+                    self.getContactList()
+                }
+            }
+            
         default:
             print("do nothing...")
         }
-        
     }
     var body: some View {
         
@@ -66,17 +88,37 @@ struct ContentView: View {
                 .padding()
         }
         .sheet(isPresented: $isHelp){
-           List{
-                ForEach(Array(contacts.enumerated()), id: \.element.id){index ,  contactDetail in
+            List{
+                ForEach(Array(uicontacts.enumerated()), id: \.element.id){index ,  contactDetail in
                     HStack{
                         Text("\(contactDetail.givenName)")
                         Text("\(contactDetail.phoneNumbers.first?.value.stringValue ?? "")")
+                    }.swipeActions{
+                        Button(action: {
+                           print(contactDetail)
+                            return
+                        }){
+                            
+                            Image(systemName: "message.fill")
+                            
+                        }.tint(.red)
+                        
+                    }.swipeActions(edge: .leading){
+                        Button(action: {
+                           print(contactDetail)
+                            return
+                        }){
+                            
+                            Image(systemName: "message.fill")
+                            
+                        }.tint(.red)
+                        
                     }
                     
                     .padding(.vertical , 10)
                 }.presentationDetents([.medium , .large])
             }
-        }.id(contacts)
+        }.id(uicontacts)
             .onAppear{
                 getContactList()
                 CLLocationManager().requestWhenInUseAuthorization()
