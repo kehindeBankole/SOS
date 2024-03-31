@@ -17,6 +17,9 @@ struct ContentView: View {
     @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var isHelp = false
     @State private var route : MKRoute?
+    @State private var userLocation: CLLocation?
+
+    @State private var userLocationName = ""
     
     func getContactList() {
         let CNStore = CNContactStore()
@@ -65,6 +68,26 @@ struct ContentView: View {
             print("do nothing...")
         }
     }
+    
+    func reverseGeocode(location: CLLocation) {
+         let geocoder = CLGeocoder()
+         geocoder.reverseGeocodeLocation(location) { placemarks, error in
+             guard let placemark = placemarks?.first else {
+                 print("Error reverse geocoding: \(error?.localizedDescription ?? "Unknown error")")
+                 return
+             }
+             
+             
+             if let name = placemark.name {
+                 self.userLocationName = name
+             } else {
+                 self.userLocationName = "Unknown Location"
+             }
+         }
+     }
+      
+    
+    
     var body: some View {
         
         ZStack(alignment: .trailing) {
@@ -80,7 +103,7 @@ struct ContentView: View {
                     isHelp.toggle()
                     
                 }){
-                    Text("HELP").foregroundStyle(.white)
+                    Text("HELP\(userLocationName)").foregroundStyle(.white)
                         .padding()
                 }
             }.background(.red)
@@ -122,6 +145,14 @@ struct ContentView: View {
             .onAppear{
                 getContactList()
                 CLLocationManager().requestWhenInUseAuthorization()
+                let locationManager = CLLocationManager()
+                locationManager.startUpdatingLocation()
+                           DispatchQueue.main.async {
+                               self.userLocation = locationManager.location
+                               if let location = self.userLocation {
+                                   reverseGeocode(location: location)
+                               }
+                           }
             }
         
     }
